@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String    @id @default(uuid()) @unique
+
+  // Identité
+  email          String    @unique
+  passwordHash   String
+  firstName      String?
+  lastName       String?
+
+  // Rôle & permissions
+  role           Role      @default(PME)
+  isActive       Boolean   @default(true)
+
+  // Sécurité
+  lastLoginAt    DateTime?
+  failedLogins   Int       @default(0)
+  isLocked       Boolean   @default(false)
+  tokens          RefreshToken[]
+  // Audit & suivi
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  validatedProjects      Project[]       @relation("ProjectValidators")
+  validatedSubSteps      SubStep[]       @relation("SubStepValidators")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  PME
+  FINANCIER
+}
+
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime? // 👈 NOUVEAU CHAMP
+ 
+  user User @relation(fields: [userId], references: [id])
+}
+
+
+model PME {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id                  String      @id @default(uuid())
+  title               String
+  description         String
+  pme                 PME         @relation(fields: [pmeId], references: [id])
+  pmeId               String
+  status              ProjectStatus @default(pending)
+  requestedAmount     Float
+  fundedAmount        Float?
+  fundDisbursementDates DateTime[]
+  validatedAt         DateTime?
+  validatedBy         User[]      @relation("ProjectValidators")
+  subSteps            SubStep[]
+
+  submissionDate      DateTime    @default(now())
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+enum ProjectStatus {
+  pending
+  approved
+  rejected
+  funded
+  completed
+  failed
+}
+
+model SubStep {
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  state        SubStepState @default(pending)
+  dueDate      DateTime?
+  completedAt  DateTime?
+  remarks      String?
+
+  project      Project     @relation(fields: [projectId], references: [id])
+  projectId    String
+  validatedBy  User[]      @relation("SubStepValidators")
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+enum SubStepState {
+  pending
+  in_progress
+  validated
+  failed
+}
+
+
